@@ -42,11 +42,11 @@ class Robotvisionsystem:
 
         rospy.init_node('driving')
         
-        # self.motor = rospy.Publisher('/xycar_motor', xycar_motor, queue_size=1)
-        # self.real_image = rospy.Subscriber('/usb_cam/image_raw/compressed',CompressedImage, self.realimg_callback)
+        self.motor = rospy.Publisher('/xycar_motor', xycar_motor, queue_size=1)
+        self.real_image = rospy.Subscriber('/usb_cam/image_raw/compressed',CompressedImage, self.realimg_callback)
 
-        self.unitymotor = rospy.Publisher('/unitymotor', PoseStamped, queue_size=1)
-        self.unity_img = rospy.Subscriber('/unitycamera', CompressedImage , self.img_callback)
+        #self.unitymotor = rospy.Publisher('/unitymotor', PoseStamped, queue_size=1)
+        #self.unity_img = rospy.Subscriber('/unitycamera', CompressedImage , self.img_callback)
 
         print ("----- Xycar self driving -----")
         self.start()    
@@ -369,7 +369,7 @@ class Robotvisionsystem:
         '''
 
             #self.angled = 0
-            #self.speed = 0
+            self.speed = 0
             
             # Publish xycar motor & unity motor
             self.unitydrive(self.angled, self.speed)
