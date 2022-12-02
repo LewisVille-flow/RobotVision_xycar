@@ -8,7 +8,7 @@ from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import PoseStamped
 
-from cv_bridge import CvBridge
+from cv_bridge import CvBridge, CvBridgeError
 from xycar_msgs.msg import xycar_motor
 from math import *
 import signal
@@ -72,7 +72,7 @@ class Robotvisionsystem:
         cv2.namedWindow("TrackBar Windows")
         cv2.setTrackbarPos("L-High","TrackBar Windows", 255)
         cv2.setTrackbarPos("L-Low" ,"TrackBar Windows", 0)
-        print ":::::"
+        print(":::::")
         while cv2.waitKey(1) != ord('q'):
             L_h = cv2.getTrackbarPos("L-High", "TrackBar Windows")
             L_l = cv2.getTrackbarPos("L-Low" , "TrackBar Windows")
