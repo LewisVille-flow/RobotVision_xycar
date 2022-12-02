@@ -21,17 +21,19 @@ import time
 
 class Line_Detect:
     def __init__(self):
-        self.image = cv2.imread('3.png', cv2.IMREAD_COLOR)
+        self.image = cv2.imread('7.png', cv2.IMREAD_COLOR)
+        #self.image = np.empty(shape=[0])
         self.Height, self.Width, self.Channel = self.image.shape
 
         self.ROI_row_percent = 0.30 # 하단 30%
-        self.ROI_col_percent = 0.80 # 중앙 80% 를 보고 싶다.
+        self.ROI_col_percent = 0.90 # 중앙 80% 를 보고 싶다.
 
         self.Row_ROI_from = self.Height - int(self.Height*self.ROI_row_percent)
         self.Row_ROI_to = self.Height
         self.Col_ROI_from = int(self.Width * (1-self.ROI_col_percent)*(0.5))
         self.Col_ROI_to = int(self.Width-((1-self.ROI_col_percent)*(0.5)*self.Width))
-           
+        
+        #self.estimated_centor
         self.Center_pos = int(self.Width * 0.5)
         self.start()
         
@@ -109,7 +111,7 @@ class Line_Detect:
         nwindows = 4
         window_height = np.int(binary_warped.shape[0] / nwindows)
         nonzero = binary_warped.nonzero()  # 선이 있는 부분의 인덱스만 저장 
-        print("nonzero: {}".format(nonzero))
+        #print("nonzero: {}".format(nonzero))
         nonzero_y = np.array(nonzero[0])  # 선이 있는 부분 y의 인덱스 값
         nonzero_x = np.array(nonzero[1])  # 선이 있는 부분 x의 인덱스 값 
         margin = 100
@@ -119,6 +121,19 @@ class Line_Detect:
         color = [0, 255, 0]
         thickness = 2
 
+        # I made here
+        
+        left_x = []
+        left_y = []
+        right_x = []
+        right_y = []
+        left_x_second_wid = []
+        left_y_second_wid = []
+        right_x_second_wid = []
+        right_y_second_wid = []
+        #left_slope = []
+        #right_slope = []
+
         for w in range(nwindows):
             win_y_low = binary_warped.shape[0] - (w + 1) * window_height  # window 윗부분
             win_y_high = binary_warped.shape[0] - w * window_height  # window 아랫 부분
@@ -127,8 +142,10 @@ class Line_Detect:
             win_xright_low = right_current - margin  # 오른쪽 window 왼쪽 위 
             win_xright_high = right_current + margin  # 오른쪽 window 오른쪽 아래
 
+            # 초록 윈도우 그리는 부분
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), color, thickness)
-            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), color, thickness)
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (155,0,0), thickness)
+        
             good_left = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) & (nonzero_x >= win_xleft_low) & (nonzero_x < win_xleft_high)).nonzero()[0]
             good_right = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) & (nonzero_x >= win_xright_low) & (nonzero_x < win_xright_high)).nonzero()[0]
             left_lane.append(good_left)
@@ -139,10 +156,105 @@ class Line_Detect:
                 left_current = np.int(np.mean(nonzero_x[good_left]))
             if len(good_right) > minpix:
                 right_current = np.int(np.mean(nonzero_x[good_right]))
-            print("good_left good_left: {}, {}".format(good_left, good_right))
+                
+            ### I customized here
+            # current left를 이용한 line 그어보기
+            cv2.line(out_img, (left_current, win_y_low), (left_current, win_y_high), (0, 0, 255), 1)
+            
+            # left x y 그려보기
+            leftx_test = nonzero_x[np.concatenate(left_lane)]
+            lefty_test = nonzero_y[np.concatenate(left_lane)]
+            rightx_test = nonzero_x[np.concatenate(right_lane)]
+            righty_test = nonzero_y[np.concatenate(right_lane)]
+            #print("leftx test size, lefty test size: {} {}".format(len(leftx_test), len(lefty_test)))
+            
+            # 각 윈도우 시작지점과 끝지점 평균을 내보자
+            """
+            일단 보류. 시간 오래걸린다. 그냥 첫- 끝 직선이나 그리자.
+            left_line_window_ten_percent = int(len(leftx_test)*0.1)
+            right_line_window_ten_percent = int(len(lefty_test)*0.1)
+            
+            lx_1, lx_2 = 0, 0
+            for i in range(left_line_window_ten_percent):
+                lx_1 += leftx_test[i]
+                lx_2 += leftx_test[len(leftx_test)-1-i]
+            
+            
+            
+            print("lx_1: ", lx_1)
+            lx_1 /= left_line_window_ten_percent
+            print("lx_1: ", lx_1)
+            """
+            lx_1, lx_2, ly_1, ly_2 = leftx_test[0], leftx_test[len(leftx_test)-1], lefty_test[0], lefty_test[len(lefty_test)-1];
+            rx_1, rx_2, ry_1, ry_2 = rightx_test[0], rightx_test[len(rightx_test)-1], righty_test[0], righty_test[len(righty_test)-1];
+            cv2.line(out_img, (lx_1, ly_1), (lx_2, ly_2), (0, 0, 255), 3)
+            cv2.line(out_img, (rx_1, ry_1), (rx_2, ry_2), (0, 0, 255), 3)
+            
+            # 각 윈도우에서 대표적인 값들을 뽑아 전체의 라인을 그려보자
+            """
+            left_avg_slope = float(ly_2 - ly_1) / float(lx_2 - lx_1)
+            right_avg_slope = float(ry_2 - ry_1) / float(rx_2 - rx_1)
+            #slope = float(y2-y1) / float(x2-x1)
+            left_slope.append(left_avg_slope)
+            right_slope.append(right_avg_slope)
+            print("l slope r slope: {} {}".format(left_avg_slope, right_avg_slope))
+            """
+            if(w == 2):
+                left_x_second_wid.append(lx_1)
+                left_x_second_wid.append(lx_2)
+                
+                left_y_second_wid.append(ly_1)
+                left_y_second_wid.append(ly_2)
+                
+                right_x_second_wid.append(rx_1)
+                right_x_second_wid.append(rx_2)
+                
+                right_y_second_wid.append(ry_1)
+                right_y_second_wid.append(ry_2)
+                
+            if(w == 1 or w == 3):
+                left_x.append(lx_2)
+                left_y.append(ly_2)
+                right_x.append(rx_2)
+                right_y.append(ry_2)
+            
+            
+            # 값이 한 윈도우만이라도 튀면 제대로 계산되지 않는다.
+            
+            #print("good_left good_right: {}, {}".format(good_left, good_right))
+        #print('\n\n')
         
-        print("left_lane left_lane: {}, {}".format(left_lane, right_lane))
+        # I made here
+        # 이정도면 쓸만한 라인을 검출하는 것 같다(ROBUST) - 라인들이 구석에서 인식되면 튄다.
+        cv2.line(out_img, (left_x[0], left_y[0]), (left_x[1], left_y[1]), (0, 255, 255), 5)
+        cv2.line(out_img, (right_x[0], right_y[0]), (right_x[1], right_y[1]), (0, 255, 255), 5)
         
+        # 다시, 하단 2번째 윈도우를 기준으로
+        cv2.line(out_img, (left_x_second_wid[0], left_y_second_wid[0]), (left_x_second_wid[1], left_y_second_wid[1]), (255, 255, 0), 5)
+        cv2.line(out_img, (right_x_second_wid[0], right_y_second_wid[0]), (right_x_second_wid[1], right_y_second_wid[1]), (255, 255, 0), 5)
+        
+        
+        _slope = float(left_y[1] - left_y[0]) / float(left_x[1] - left_x[0])
+        print(">>>>>>>>sLOPE <<<<<<<<<<", _slope) # 3.jpg: -0.5813953488372093
+        # 1.jpg: -1.6
+        
+        # 끝 부분의 중앙과 시작 부분의 중앙의 차이점으로 각도를 구하자
+        #start_mid = int((left_x[0] + right_x[0]) / 2)
+        #end_mid = int((left_x[1] + right_x[1]) / 2)
+        
+        start_mid = int((left_x_second_wid[0] + right_x_second_wid[0]) / 2)
+        end_mid = int((left_x_second_wid[1] + right_x_second_wid[1]) / 2)
+        
+        cv2.circle(out_img, (start_mid, int((left_y[0]+right_y[0])/2)), 5, (0, 255, 0), -1)   #car center rectangle
+        cv2.circle(out_img, (end_mid, int((left_y[1]+right_y[1])/2)), 5, (0, 255, 0), -1)   #car center rectangle
+
+        start_end_abs = (end_mid - start_mid)
+        #print(">>>>>>>>>>>>diff: ", start_end_abs) # 1.jpg = 4, 3.jpg = 95
+        # 양수 커질수록 = 오른쪽으로 회전 필요함
+        
+        start_end_interval = left_x[1] - left_x[0]
+        print(">>>>>>>>>>>>diff: ", start_end_interval)
+
         left_lane = np.concatenate(left_lane)  # np.concatenate() -> array를 1차원으로 합침
         right_lane = np.concatenate(right_lane)
 
@@ -150,7 +262,7 @@ class Line_Detect:
         lefty = nonzero_y[left_lane]
         rightx = nonzero_x[right_lane]
         righty = nonzero_y[right_lane]
-        print("nonzero_x nonzero_y: {}, {}".format(nonzero_x, nonzero_y))
+        #print("nonzero_x nonzero_y: {}, {}".format(nonzero_x, nonzero_y))
         print("left_lane right_lane: {}, {}".format(left_lane, right_lane))
         
         # 얘네가 빈 리스트이다.
@@ -207,6 +319,92 @@ class Line_Detect:
 
         return pts_mean, result
     
+    ####################################################################################
+    
+    def move_with_only_with_one_line(self, binary_warped, current):
+        out_img = np.dstack((binary_warped, binary_warped, binary_warped))
+
+        nwindows = 4
+        window_height = np.int(binary_warped.shape[0] / nwindows)
+        nonzero = binary_warped.nonzero()  # 선이 있는 부분의 인덱스만 저장 
+        #print("nonzero: {}".format(nonzero))
+        nonzero_y = np.array(nonzero[0])  # 선이 있는 부분 y의 인덱스 값
+        nonzero_x = np.array(nonzero[1])  # 선이 있는 부분 x의 인덱스 값 
+        margin = 100
+        minpix = 50
+        oneline_lane = []
+        #right_lane = []
+        color = [0, 255, 0]
+        thickness = 2
+        #print("current: {}".format(current))
+        # I made here
+        
+        oneline_x = []
+        oneline_y = []
+
+        for w in range(nwindows):
+            win_y_low = binary_warped.shape[0] - (w + 1) * window_height  # window 윗부분
+            win_y_high = binary_warped.shape[0] - w * window_height  # window 아랫 부분
+            win_x_low = current - margin  # 왼쪽 window 왼쪽 위
+            win_x_high = current + margin  # 왼쪽 window 오른쪽 아래
+
+            # 초록 윈도우 그리는 부분
+            cv2.rectangle(out_img, (win_x_low, win_y_low), (win_x_high, win_y_high), color, thickness)
+
+            good_line = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) & (nonzero_x >= win_x_low) & (nonzero_x < win_x_high)).nonzero()[0]
+            #print("good line {}".format(good_line))
+            oneline_lane.append(good_line)
+            # cv2.imshow("oo", out_img)
+
+            if len(good_line) > minpix:
+                current = np.int(np.mean(nonzero_x[good_line]))
+            
+                
+            ### I customized here
+            # current left를 이용한 line 그어보기
+            cv2.line(out_img, (current, win_y_low), (current, win_y_high), (155, 155, 155), 2)
+            
+            # left x y 그려보기
+            onelinex_test = nonzero_x[np.concatenate(oneline_lane)]
+            oneliney_test = nonzero_y[np.concatenate(oneline_lane)]
+
+            ox_1, ox_2, oy_1, oy_2 = onelinex_test[0], onelinex_test[len(onelinex_test)-1], oneliney_test[0], oneliney_test[len(oneliney_test)-1];
+            
+            cv2.line(out_img, (ox_1, oy_1), (ox_2, oy_2), (0, 0, 255), 3)
+
+            if(w == 2):
+                oneline_x.append(ox_1)
+                oneline_x.append(ox_2)
+                
+                oneline_y.append(oy_1)
+                oneline_y.append(oy_2)
+
+            
+            
+            # 값이 한 윈도우만이라도 튀면 제대로 계산되지 않는다.
+            
+            #print("good_left good_right: {}, {}".format(good_left, good_right))
+        #print('\n\n')
+        
+        # I made here
+        # 이정도면 쓸만한 라인을 검출하는 것 같다(ROBUST) - 라인들이 구석에서 인식되면 튄다.
+        # 다시, 하단 2번째 윈도우를 기준으로
+        cv2.line(out_img, (oneline_x[0], oneline_y[0]), (oneline_x[1], oneline_y[1]), (255, 255, 0), 5)
+        cv2.imshow("out_img", out_img)
+        # 끝 부분의 중앙과 시작 부분의 중앙의 차이점으로 각도를 구하자
+        start_mid = int(oneline_x[0])
+        end_mid = int(oneline_x[1])
+
+        start_end_abs = (end_mid - start_mid)
+        print(">>>>>>>>>>>>diff: ", start_end_abs) # 1.jpg = 4, 3.jpg = 95
+        # 양수 커질수록 = 오른쪽으로 회전 필요함
+        
+        start_end_interval = (end_mid - start_mid)
+        
+        self.esimated_center = start_end_interval
+        
+        return
+        
     def start(self):
         
         
@@ -224,16 +422,34 @@ class Line_Detect:
         # warpping
         #_gray = cv2.cvtColor(line_roi, cv2.COLOR_BGR2GRAY)
         _, thresh = cv2.threshold(line_roi, 75, 110, cv2.THRESH_BINARY)
+        #cv2.imshow("thresh", thresh)
         
-        wrapped_img, _back = self.wrapping(line_roi)
-        cv2.imshow("wrapped_img", wrapped_img)
+        #wrapped_img, _back = self.wrapping(line_roi)
+        #cv2.imshow("wrapped_img", wrapped_img)
         
         # histogram of white line
         left_base, right_base = self.plothistogram(thresh)
         
-        draw_info = self.slide_window_search(thresh, left_base, right_base)
+        print(">>>>> left_base, right_base: {} {}".format(left_base, right_base))
+
+
+        # one line test
+        """
+        if(left_base < 10):
+            # MOVE with olny right
+            self.move_with_only_with_one_line(thresh, right_base)
+        elif(right_base >= self.Col_ROI_to):
+            # move with only left    
+            self.move_with_only_with_one_line(thresh, left_base)
+            
+        else:    
+            draw_info = self.slide_window_search(thresh, left_base, right_base)
         #m, r = self.draw_lane_lines(line_roi, wrapped_img, _back, draw_info)
-        
+        """
+        if(self.esitmat > )
+        self.move_with_only_with_one_line(thresh, left_base)
+        #self.move_with_only_with_one_line(thresh, right_base)
+               
         
         """
         긁어온 함수 테스트 - cv2.poly 안되서 일단 보류중
@@ -242,8 +458,8 @@ class Line_Detect:
         
         #combine_image = cv2.addWeighted(img, 0.8, lines_image, 1, 1)
         """
-        
-        
+        #####################################################################################3
+        """
         # draw lines in ROI area
         line_img = edge_img.copy()
         
@@ -353,8 +569,8 @@ class Line_Detect:
                 
                 x1, y1, x2, y2 = line[0]
                 slope = float(y2-y1) / float(x2-x1)
-                print("right slope: {}".format(slope))
-                print("right x1, y1, x2, y2: {}, {}, {}, {}".format(x1, y1, x2, y2))
+                #print("right slope: {}".format(slope))
+                #print("right x1, y1, x2, y2: {}, {}, {}, {}".format(x1, y1, x2, y2))
                 x_sum += x1 + x2
                 y_sum += y1 + y2
                 m_sum += float(y2 - y1) / float(x2 - x1)
@@ -368,7 +584,7 @@ class Line_Detect:
             x2 = int((240.0 - b_right) / m_right)
             right_center = int((x1+x2)/2)
             cv2.line(self.image, (x1, 0+240), (x2, 240+240), (255, 255, 0), 2)
-            print("right x 1 , x 2 ({}, {})".format(x1, x2))
+            #print("right x 1 , x 2 ({}, {})".format(x1, x2))
             # 평균적인 우측 선을 (255,0,0) 으로 나타낸 것
             
             line_center = int((left_center + right_center)/2)
@@ -379,13 +595,19 @@ class Line_Detect:
             cv2.line(self.image, (self.Center_pos, 0), (self.Center_pos, self.Width), (0, 255, 255), 1) # 세로선_1
             cv2.line(self.image, (320, 0), (320, 480), (0, 255, 255), 1) # 세로선_2
             
-            cv2.imshow("line_img", line_img)
-            cv2.imshow("self_image", self.image)
-            cv2.imshow("line_roi", line_roi)
+            cv2.rectangle(self.image, (315, 355), (325, 365), (0, 0, 255), 2)
+            # line과 동일하게 시작점 좌표, 종료지점 좌표로 나타냄.
+                
+            #_angle = line_center - 320
+            #self.angled = 
+            
+            
             #_x, _y, _w, _h = cv2.selectROI("location", line_roi, False)
             #print("x, y, w, h : {}, {}, {}, {}".format(_x, _y, _w, _h) )
-            
-            
+        """    
+        #cv2.imshow("line_img", line_img)
+        #cv2.imshow("self_image", self.image)
+        #cv2.imshow("line_roi", line_roi)    
         if cv2.waitKey() == ord('q'):
             cv2.destroyAllWindows()
         """
