@@ -13,16 +13,20 @@
 <p align="center"><img src="./image/8.png"></p>  
 
 # How to start
-### Start Guide
+### Setup Guide for different OS
 Nvidia AGX Xavier installed in Xycar is called Single-board computer (SBC). Your Computer is called PC. Data from many sensor installed in Xycar sent to the SBC. If you want see sensor data, you do connect your PC to SBC. Nvidia AGX Xavier OS is Jetpack 4.2.3 & ROS1 Melodic. Recommend PC OS is Ubuntu 18.04 & Windows10 or 11.
 
 [1. Windows 10 + WSL2](./GettingStartedGuide/windows.md)  
 [2. Ubuntu 18.04](./GettingStartedGuide/ubuntu.md)
 
+
+Complete guide will be added soon.
+
+  
 ### Submission
-1. Assignment1
-	- complete video will be updated
-2. Assginment2
+<p align="center">
+<img src="./assignment1/src/image/submission/1.gif">unity 환경에서 opencv를 이용하여 라인 검출 및 주행. 2.5배속
+</p>
 
 
 ### Update
