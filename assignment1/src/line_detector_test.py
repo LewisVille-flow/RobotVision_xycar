@@ -21,23 +21,55 @@ import time
 
 class Line_Detect:
     def __init__(self):
-        self.image = cv2.imread('7.png', cv2.IMREAD_COLOR)
+        self.image = cv2.imread('31.png', cv2.IMREAD_COLOR)
         #self.image = np.empty(shape=[0])
         self.Height, self.Width, self.Channel = self.image.shape
 
-        self.ROI_row_percent = 0.30 # 하단 30%
-        self.ROI_col_percent = 0.90 # 중앙 80% 를 보고 싶다.
+        self.ROI_row_percent = 0.4 # 하단 x0%
+        self.ROI_col_percent = 0.8 # 중앙 80% 를 보고 싶다.
 
         self.Row_ROI_from = self.Height - int(self.Height*self.ROI_row_percent)
         self.Row_ROI_to = self.Height
         self.Col_ROI_from = int(self.Width * (1-self.ROI_col_percent)*(0.5))
         self.Col_ROI_to = int(self.Width-((1-self.ROI_col_percent)*(0.5)*self.Width))
         
-        #self.estimated_centor
+        self.estimated_center = 0.0
         self.Center_pos = int(self.Width * 0.5)
+        
+        self.ROI_light_row_percent = 0.8 # 상단 50%
+        self.ROI_light_col_percent = 1 # 중앙 50%
+        self.Row_light_ROI_from = 0
+        self.Row_light_ROI_to = int(self.Height*self.ROI_light_row_percent)
+        
+        self.Col_light_ROI_from = int(self.Width * (1-self.ROI_light_col_percent)*(0.5))
+        self.Col_light_ROI_to = int(self.Width-((1-self.ROI_light_col_percent)*(0.5)*self.Width))
+        
+        self.Col_force_right_from = int(self.Width * 0)
+        self.Col_force_right_to = int(self.Width)
+        
+        ### for test real
+        self.ROW_ROI_real_under_ignore_percent = 0.1   # 하단 5%는 안 보련다
+        self.ROW_ROI_real_percent = 0.25         # 하단 
+        
+        self.Height_with_ignored = self.Height*(1-self.ROW_ROI_real_under_ignore_percent)
+        
+        self.Row_ROI_from_real = int(self.Height_with_ignored - int(self.Height_with_ignored*self.ROW_ROI_real_percent))
+        self.Row_ROI_to_real = int(self.Height_with_ignored)
+        
+        self.ROI_col_percent_real = 0.90 # 중앙 80% 를 보고 싶다.
+        self.Col_ROI_from_real = int(self.Width * (1-self.ROI_col_percent_real)*(0.5))
+        self.Col_ROI_to_real = int(self.Width-((1-self.ROI_col_percent_real)*(0.5)*self.Width))
+        
+        
+        self.estimated_center_left = 0.0
+        self.estimated_center_right = 0.0
+        
+        clear = lambda : os.system('clear')
+        clear()
+        print ("----- Xycar TEST -----")        
         self.start()
         
-    
+
     """
     def average_slope_intercept(self, image, lines):
         left_fit = []
@@ -96,14 +128,73 @@ class Line_Detect:
         _image = cv2.warpPerspective(image, transform_matrix, (w, h))
 
         return _image, minv
+    
+    
+    def crosswalk_image_create(self, image, current, window=0):
+        margin = 100
+        window_height = 50
+        w = window
+
+        if(window != 0):
+            y_low = image.shape[0] - window_height
+            y_high = y_low + window_height
+            if(y_high > image.shape[0]):
+                y_high = image.shape[0]
+        else:
+            y_low = w * window_height
+            y_high = (w + 1) * window_height
+            
+        x_low = current - margin
+        x_high = current + margin
+
+        crosswalk_image = image[y_low:y_high, x_low:x_high]
+        
+        return crosswalk_image
+    
+    
+    def crosswalk_histogram(self, image, ratio, verbose=False):
+        histogram = np.sum(image[image.shape[0]//2:, :], axis=0)
+        histogram_nonzero = np.asarray(np.nonzero(histogram))
+        
+        histogram_size = (float)(len(histogram))
+        histogram_nonzero_size = (float)(histogram_nonzero.size)
+        nonzero_ratio = (histogram_nonzero_size/histogram_size)
+        
+        if(verbose):
+            print("         crosswalk ratio: {}".format(nonzero_ratio))
+        
+        if(nonzero_ratio > ratio): 
+            return True
+        else:
+            return False
+
+    
+    def plothalfhistogram(self, image):
+        histogram = np.sum(image[image.shape[0]//2:, :], axis=0)
+        midpoint = np.int(histogram.shape[0]/2)
+
+        base = np.argmax(histogram[:])
+
+        print("half base {}".format(base))
+        return base
 
     def plothistogram(self, image):
         histogram = np.sum(image[image.shape[0]//2:, :], axis=0)
         midpoint = np.int(histogram.shape[0]/2)
-        leftbase = np.argmax(histogram[:midpoint])
-        rightbase = np.argmax(histogram[midpoint:]) + midpoint
         
-        return leftbase, rightbase
+        leftbase_min = np.int(histogram.shape[0]*0.15)
+        rightbase_min = np.int(histogram.shape[0]*0.98)
+        
+        leftbase = np.argmax(histogram[leftbase_min:midpoint]) + leftbase_min
+        rightbase = np.argmax(histogram[midpoint:rightbase_min]) + midpoint
+        
+        histogram_nonzero = np.asarray(np.nonzero(histogram))
+        histogram_size = (float)(len(histogram))
+        histogram_nonzero_size = (float)(histogram_nonzero.size)
+        ratio = (histogram_nonzero_size/histogram_size)
+
+        print("leftbase rightbase {}, {}".format(image.shape, rightbase))
+        return leftbase, rightbase, ratio
 
     def slide_window_search(self, binary_warped, left_current, right_current):
         out_img = np.dstack((binary_warped, binary_warped, binary_warped))
@@ -127,13 +218,15 @@ class Line_Detect:
         left_y = []
         right_x = []
         right_y = []
+        #left_slope = []
+        #right_slope = []
+
         left_x_second_wid = []
         left_y_second_wid = []
         right_x_second_wid = []
         right_y_second_wid = []
-        #left_slope = []
-        #right_slope = []
-
+        
+        h_line_x = []
         for w in range(nwindows):
             win_y_low = binary_warped.shape[0] - (w + 1) * window_height  # window 윗부분
             win_y_high = binary_warped.shape[0] - w * window_height  # window 아랫 부분
@@ -144,7 +237,7 @@ class Line_Detect:
 
             # 초록 윈도우 그리는 부분
             cv2.rectangle(out_img, (win_xleft_low, win_y_low), (win_xleft_high, win_y_high), color, thickness)
-            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), (155,0,0), thickness)
+            cv2.rectangle(out_img, (win_xright_low, win_y_low), (win_xright_high, win_y_high), color, thickness)
         
             good_left = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) & (nonzero_x >= win_xleft_low) & (nonzero_x < win_xleft_high)).nonzero()[0]
             good_right = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) & (nonzero_x >= win_xright_low) & (nonzero_x < win_xright_high)).nonzero()[0]
@@ -168,37 +261,18 @@ class Line_Detect:
             righty_test = nonzero_y[np.concatenate(right_lane)]
             #print("leftx test size, lefty test size: {} {}".format(len(leftx_test), len(lefty_test)))
             
-            # 각 윈도우 시작지점과 끝지점 평균을 내보자
-            """
-            일단 보류. 시간 오래걸린다. 그냥 첫- 끝 직선이나 그리자.
-            left_line_window_ten_percent = int(len(leftx_test)*0.1)
-            right_line_window_ten_percent = int(len(lefty_test)*0.1)
+            try:
+                lx_1, lx_2, ly_1, ly_2 = leftx_test[0], leftx_test[len(leftx_test)-1], lefty_test[0], lefty_test[len(lefty_test)-1];
+                rx_1, rx_2, ry_1, ry_2 = rightx_test[0], rightx_test[len(rightx_test)-1], righty_test[0], righty_test[len(righty_test)-1];
+            except:
+                return -1
             
-            lx_1, lx_2 = 0, 0
-            for i in range(left_line_window_ten_percent):
-                lx_1 += leftx_test[i]
-                lx_2 += leftx_test[len(leftx_test)-1-i]
-            
-            
-            
-            print("lx_1: ", lx_1)
-            lx_1 /= left_line_window_ten_percent
-            print("lx_1: ", lx_1)
-            """
-            lx_1, lx_2, ly_1, ly_2 = leftx_test[0], leftx_test[len(leftx_test)-1], lefty_test[0], lefty_test[len(lefty_test)-1];
-            rx_1, rx_2, ry_1, ry_2 = rightx_test[0], rightx_test[len(rightx_test)-1], righty_test[0], righty_test[len(righty_test)-1];
             cv2.line(out_img, (lx_1, ly_1), (lx_2, ly_2), (0, 0, 255), 3)
             cv2.line(out_img, (rx_1, ry_1), (rx_2, ry_2), (0, 0, 255), 3)
             
             # 각 윈도우에서 대표적인 값들을 뽑아 전체의 라인을 그려보자
-            """
-            left_avg_slope = float(ly_2 - ly_1) / float(lx_2 - lx_1)
-            right_avg_slope = float(ry_2 - ry_1) / float(rx_2 - rx_1)
-            #slope = float(y2-y1) / float(x2-x1)
-            left_slope.append(left_avg_slope)
-            right_slope.append(right_avg_slope)
-            print("l slope r slope: {} {}".format(left_avg_slope, right_avg_slope))
-            """
+            
+            
             if(w == 2):
                 left_x_second_wid.append(lx_1)
                 left_x_second_wid.append(lx_2)
@@ -211,88 +285,61 @@ class Line_Detect:
                 
                 right_y_second_wid.append(ry_1)
                 right_y_second_wid.append(ry_2)
-                
+            
             if(w == 1 or w == 3):
                 left_x.append(lx_2)
                 left_y.append(ly_2)
                 right_x.append(rx_2)
                 right_y.append(ry_2)
             
-            
+                
             # 값이 한 윈도우만이라도 튀면 제대로 계산되지 않는다.
             
-            #print("good_left good_right: {}, {}".format(good_left, good_right))
-        #print('\n\n')
         
         # I made here
         # 이정도면 쓸만한 라인을 검출하는 것 같다(ROBUST) - 라인들이 구석에서 인식되면 튄다.
-        cv2.line(out_img, (left_x[0], left_y[0]), (left_x[1], left_y[1]), (0, 255, 255), 5)
+        cv2.line(out_img, (left_x[0], left_y[0]), (left_x[1], left_y[1]), (0, 255, 255), 5) # yellow
         cv2.line(out_img, (right_x[0], right_y[0]), (right_x[1], right_y[1]), (0, 255, 255), 5)
         
         # 다시, 하단 2번째 윈도우를 기준으로
         cv2.line(out_img, (left_x_second_wid[0], left_y_second_wid[0]), (left_x_second_wid[1], left_y_second_wid[1]), (255, 255, 0), 5)
         cv2.line(out_img, (right_x_second_wid[0], right_y_second_wid[0]), (right_x_second_wid[1], right_y_second_wid[1]), (255, 255, 0), 5)
         
+
+        #_slope = float(left_y[1] - left_y[0]) / float(left_x[1] - left_x[0])
         
-        _slope = float(left_y[1] - left_y[0]) / float(left_x[1] - left_x[0])
-        print(">>>>>>>>sLOPE <<<<<<<<<<", _slope) # 3.jpg: -0.5813953488372093
+        
+        #print(">>>>>>>>sLOPE <<<<<<<<<<", _slope) 
+        # 3.jpg: -0.5813953488372093
         # 1.jpg: -1.6
         
-        # 끝 부분의 중앙과 시작 부분의 중앙의 차이점으로 각도를 구하자
+        ## 끝 부분의 중앙과 시작 부분의 중앙의 차이점으로 각도를 구하자
         #start_mid = int((left_x[0] + right_x[0]) / 2)
         #end_mid = int((left_x[1] + right_x[1]) / 2)
-        
         start_mid = int((left_x_second_wid[0] + right_x_second_wid[0]) / 2)
         end_mid = int((left_x_second_wid[1] + right_x_second_wid[1]) / 2)
         
-        cv2.circle(out_img, (start_mid, int((left_y[0]+right_y[0])/2)), 5, (0, 255, 0), -1)   #car center rectangle
-        cv2.circle(out_img, (end_mid, int((left_y[1]+right_y[1])/2)), 5, (0, 255, 0), -1)   #car center rectangle
-
-        start_end_abs = (end_mid - start_mid)
-        #print(">>>>>>>>>>>>diff: ", start_end_abs) # 1.jpg = 4, 3.jpg = 95
-        # 양수 커질수록 = 오른쪽으로 회전 필요함
         
-        start_end_interval = left_x[1] - left_x[0]
-        print(">>>>>>>>>>>>diff: ", start_end_interval)
+        cv2.circle(out_img, (start_mid, int((left_y_second_wid[0]+right_y_second_wid[0])/2)), 5, (255, 255, 0), -1)   #car center rectangle
+        cv2.circle(out_img, (end_mid, int((left_y_second_wid[1]+right_y_second_wid[1])/2)), 5, (255, 255, 0), -1)   #car center rectangle
 
+        start_end_interval = (end_mid - start_mid)
+        #print(">>>>>>>>>>>>diff: ", start_end_interval) # 1.jpg = 4, 3.jpg = 95
+        # 양수 커질수록 = 오른쪽으로 회전 필요함
+        #start_end_interval = left_x[1] - left_x[0]
+        
+        self.estimated_center = start_end_interval
+
+  
         left_lane = np.concatenate(left_lane)  # np.concatenate() -> array를 1차원으로 합침
         right_lane = np.concatenate(right_lane)
-
-        leftx = nonzero_x[left_lane]
-        lefty = nonzero_y[left_lane]
-        rightx = nonzero_x[right_lane]
-        righty = nonzero_y[right_lane]
-        #print("nonzero_x nonzero_y: {}, {}".format(nonzero_x, nonzero_y))
-        print("left_lane right_lane: {}, {}".format(left_lane, right_lane))
-        
-        # 얘네가 빈 리스트이다.
-        
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
-
-        ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
-        left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
-        right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
-
-        ltx = np.trunc(left_fitx)  # np.trunc() -> 소수점 부분을 버림
-        rtx = np.trunc(right_fitx)
-        
 
         out_img[nonzero_y[left_lane], nonzero_x[left_lane]] = [255, 0, 0]
         out_img[nonzero_y[right_lane], nonzero_x[right_lane]] = [0, 0, 255]
         
-
         cv2.imshow("out_img", out_img)
-        '''plt.imshow(out_img)
-        plt.plot(left_fitx, ploty, color = 'yellow')
-        plt.plot(right_fitx, ploty, color = 'yellow')
-        plt.xlim(0, 1280)
-        plt.ylim(720, 0)
-        plt.show()'''
 
-        ret = {'left_fitx' : ltx, 'right_fitx': rtx, 'ploty': ploty}
-
-        return ret
+        return
 
     def draw_lane_lines(self, original_image, warped_image, Minv, draw_info):
         left_fitx = draw_info['left_fitx']
@@ -321,7 +368,7 @@ class Line_Detect:
     
     ####################################################################################
     
-    def move_with_only_with_one_line(self, binary_warped, current):
+    def move_with_only_with_one_line(self, binary_warped, current, name='none'):
         out_img = np.dstack((binary_warped, binary_warped, binary_warped))
 
         nwindows = 4
@@ -330,7 +377,7 @@ class Line_Detect:
         #print("nonzero: {}".format(nonzero))
         nonzero_y = np.array(nonzero[0])  # 선이 있는 부분 y의 인덱스 값
         nonzero_x = np.array(nonzero[1])  # 선이 있는 부분 x의 인덱스 값 
-        margin = 100
+        margin = 200
         minpix = 50
         oneline_lane = []
         #right_lane = []
@@ -341,7 +388,7 @@ class Line_Detect:
         
         oneline_x = []
         oneline_y = []
-
+        h_line_x =[]
         for w in range(nwindows):
             win_y_low = binary_warped.shape[0] - (w + 1) * window_height  # window 윗부분
             win_y_high = binary_warped.shape[0] - w * window_height  # window 아랫 부분
@@ -379,7 +426,14 @@ class Line_Detect:
                 oneline_y.append(oy_1)
                 oneline_y.append(oy_2)
 
-            
+            """### 노란 가로선 인식하기
+            if(w == 0):
+                # win_x 의 중앙, current로부터 오른쪽의 점들로 선을 그려서 기울기를 보자.
+                h_line_x.append([nonzero_x > current])
+                #h_line_y.append([nonzero_y])
+                
+            cv2.line(out_img, (h_line_x[0], int(window_height*0.5)), (h_line_x[len(h_line_x)-1], int(window_height*0.5)), (0, 0, 255), 3)    
+            """
             
             # 값이 한 윈도우만이라도 튀면 제대로 계산되지 않는다.
             
@@ -390,32 +444,177 @@ class Line_Detect:
         # 이정도면 쓸만한 라인을 검출하는 것 같다(ROBUST) - 라인들이 구석에서 인식되면 튄다.
         # 다시, 하단 2번째 윈도우를 기준으로
         cv2.line(out_img, (oneline_x[0], oneline_y[0]), (oneline_x[1], oneline_y[1]), (255, 255, 0), 5)
-        cv2.imshow("out_img", out_img)
+        
+        if name == 'none': 
+            cv2.imshow("out_img", out_img)
+        else:
+            cv2.imshow(name, out_img)
+            
         # 끝 부분의 중앙과 시작 부분의 중앙의 차이점으로 각도를 구하자
         start_mid = int(oneline_x[0])
         end_mid = int(oneline_x[1])
 
         start_end_abs = (end_mid - start_mid)
-        print(">>>>>>>>>>>>diff: ", start_end_abs) # 1.jpg = 4, 3.jpg = 95
+        #print(">>>>>>>>>>>>diff: ", start_end_abs) # 1.jpg = 4, 3.jpg = 95
         # 양수 커질수록 = 오른쪽으로 회전 필요함
         
         start_end_interval = (end_mid - start_mid)
         
-        self.esimated_center = start_end_interval
+        self.estimated_center = start_end_interval
         
         return
+    
+    def detecting_traffic_light(self, edge_img):
+        light_roi = edge_img[self.Row_light_ROI_from:self.Row_light_ROI_to, self.Col_light_ROI_from:self.Col_light_ROI_to]
+        
+
+        _light_roi_h, _light_roi_w = light_roi.shape
+        
+        _lights = cv2.HoughLinesP(light_roi, 1, math.pi/180,30,10,10)
+        
+        _, thresh = cv2.threshold(light_roi, 75, 110, cv2.THRESH_BINARY)
+
+        #left_base, right_base, crosswalk_ratio = self.plothistogram(thresh)
+        
+        
+        
+        cv2.imshow("lights", thresh)
+
+        return
+    
+    
+    def detect_stopline_contour(self, cal_image, x_l, y_l, x_r, y_r):
+        #blur = cv2.GaussianBlur(cal_image, (5, 5), 0)
+        #_, _, B = cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2LAB))
+        #_, lane = cv2.threshold(B, low_threshold_value, 255, cv2.THRESH_BINARY)
+        # save_img = cal_image.copy()
+        
+        _w = y_r - y_l
+        _h = x_r - x_l
+        
+        contours, _ = cv2.findContours(cal_image, cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+        self.x, self.y, self.w, self.h = [], [], [], []
+        self.stop = False
+        cnt = 0
+        for cont in contours:
+            length = cv2.arcLength(cont, True)
+            
+            area = cv2.contourArea(cont)
+            print("length, area : {}, {}".format(length, area))
+            (x, y, w, h) = cv2.boundingRect(cont)
+            center = (x + int(w/2), y + int(h/2))
+            width, height = cal_image.shape
+            
+            #print("x, y, w, h:{}, {}, {}, {}".format(x, y, w, h))
+            #print("img shape: {}, {}".format(cal_image.shape[0], cal_image.shape[1]))
+            
+            # 여기서 x는 가로 축이다
+            if(x > 0.52*cal_image.shape[1] and y < 0.19*cal_image.shape[0] and self.stop == False):
+                cnt += 1
+                if(cnt > 5):
+                    print("stop")
+                    self.stop = True
+                    
+                #cv2.rectangle(cal_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                self.x.append(int(x))
+                self.y.append(int(y))
+                self.w.append(int(w))
+                self.h.append(int(h))
+            
+            if not ((area > 1000) and (length > 400)):
+                continue
+            if len(cv2.approxPolyDP(cont, length*0.02, True)) < 2:
+                continue
+        """            
+
+            if 200 <= center[0] <= (width - 200):
+                cv2.rectangle(cal_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                print("stopline")
+        
+        print("number of cnt: ", cnt)      
+        cv2.imshow("save_img", save_img)   
+        """
+                
+    def calibrate_image(frame, mtx, dist, cal_mtx, cal_roi):
+        height, width, _ = frame.shape
+        tf_image = cv2.undistort(frame, mtx, dist, None, cal_mtx)
+        x, y, w, h = cal_roi
+        tf_image = tf_image[y:y+h, x:x+w]
+        
+        return cv2.resize(tf_image, (width, height))
+    #################################################################33
         
     def start(self):
         
         
         img = self.image.copy()
+        #img = img[self.Row_ROI_from:self.Row_ROI_to, self.Col_ROI_from:self.Col_ROI_to]
+        
         blur = cv2.GaussianBlur(img, (5, 5), 0)
+        ## ver 1
         H, L, S = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HLS))
-        _, L = cv2.threshold(L, 75, 110, cv2.THRESH_BINARY)
-        edge_img = cv2.Canny(np.uint8(L), 60, 70)
+        _, _L = cv2.threshold(L, 75, 110, cv2.THRESH_BINARY)
+        edge_img = cv2.Canny(np.uint8(_L), 60, 70)
+        
+        ## ver 2
+        edge_img_g = cv2.Canny(np.uint8(blur), 60, 70)
+        
+        ## ver 3
+        _, L = cv2.threshold(L, 120, 225, cv2.THRESH_BINARY)
+        edge_img_white = L
+        edge_img_white_canny = cv2.Canny(np.uint8(L), 60, 70)
+        
+        ## ver 4 yellow.py
+        yL, yA, yB = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2LAB))
+        
+        #_, yL = cv2.threshold(yL, 140, 255, cv2.THRESH_BINARY)
+        _, yB = cv2.threshold(yB, 140, 255, cv2.THRESH_BINARY)
+        #yL_canny = cv2.Canny(np.uint8(yB), 60, 70)
+        yB_canny = cv2.Canny(np.uint8(yB), 60, 70) # 140,255 B 로 갑시다
+        
+        ### img test show
+        
+        image_compare1 = np.hstack((edge_img_g, edge_img))
+        image_compare1 = cv2.resize(image_compare1, (2080, 580))
+        image_compare2 = np.hstack((edge_img_white, edge_img_white_canny))
+        image_compare2 = cv2.resize(image_compare1, (2080, 580))
+        
+        cv2.imshow("white from HLS(left), white from HLS with canny(right)", image_compare2)
         
         
-        line_roi = edge_img[self.Row_ROI_from:self.Row_ROI_to, self.Col_ROI_from:self.Col_ROI_to]
+        '''
+        _name = "gaussian(left) and L from HLS(right)"
+        _path = "/home/ubuntu/2022-2_lectures/xycar_ws/src/RobotVision_xycar/assignment1/src/image/real_image_compare/" + _name + ".jpg"
+        cv2.imwrite(_path, image_compare1)
+        cv2.imshow("gaussian(left) and L from HLS(right)", image_compare1) # with gaussian, HLS 비교
+        
+        image_compare2 = np.hstack((edge_img_white, edge_img_white_canny))
+        image_compare2 = cv2.resize(image_compare1, (2080, 580))
+        _name = "white from HLS(left), white from HLS with canny(right)"
+        cv2.imwrite("/home/ubuntu/2022-2_lectures/xycar_ws/src/RobotVision_xycar/assignment1/src/image/real_image_compare/" + _name + ".jpg", image_compare2)
+        
+        cv2.imshow("white from HLS(left), white from HLS with canny(right)", image_compare2)'''
+        
+        ### 
+        # Col_ROI_from
+        _line_roi = edge_img[self.Row_ROI_from_real:self.Row_ROI_to_real, self.Col_ROI_from_real:self.Col_ROI_to_real]
+        #_line_roi_yL = yL_canny[self.Row_ROI_from_real:self.Row_ROI_to_real, self.Col_ROI_from_real:self.Col_ROI_to_real]
+        _line_roi_yB = yB_canny[self.Row_ROI_from_real:self.Row_ROI_to_real, self.Col_ROI_from_real:self.Col_ROI_to_real]
+        
+        yB = yB[self.Row_ROI_from_real:self.Row_ROI_to_real, self.Col_ROI_from_real:self.Col_ROI_to_real]
+        edge_img_white = edge_img_white[self.Row_ROI_from_real:self.Row_ROI_to_real, self.Col_ROI_from_real:self.Col_ROI_to_real]
+       
+        
+        cv2.imshow("_line_roi", _line_roi)
+        #cv2.imshow("_line_roi_yL", _line_roi_yL)
+        cv2.imshow("_line_roi_yB", _line_roi_yB)
+        
+        
+        #### riding test
+        
+        #line_roi = edge_img[self.Row_ROI_from:self.Row_ROI_to, self.Col_ROI_from:self.Col_ROI_to]
+        line_roi = edge_img[self.Row_ROI_from:self.Row_ROI_to, self.Col_force_right_from:self.Col_force_right_to]
+        
         _line_roi_h, _line_roi_w = line_roi.shape
         all_lines = cv2.HoughLinesP(line_roi, 1, math.pi/180,30,10,10)
         
@@ -428,28 +627,109 @@ class Line_Detect:
         #cv2.imshow("wrapped_img", wrapped_img)
         
         # histogram of white line
-        left_base, right_base = self.plothistogram(thresh)
+        clear = lambda : os.system('clear')
+        clear()
+        _left_base, _right_base, _ = self.plothistogram(_line_roi_yB)
         
-        print(">>>>> left_base, right_base: {} {}".format(left_base, right_base))
+        for i in range(10):
+            print(">>>>>>>>>> left_base, right_base: {} {}".format(_left_base, _right_base))
 
-
-        # one line test
+        #self.detecting_traffic_light(edge_img)
+        
+        return_value = self.slide_window_search(_line_roi_yB, _left_base, _right_base)
+        
+        
+        ### half base - left
+        _line_roi_lefthalf = yB[:, :int(yB.shape[1]*0.85)]  # row, col
+        _lbase = self.plothalfhistogram(_line_roi_lefthalf)
+        
+                
+        ### half base - right
+        _line_roi_righthalf = edge_img_white[:, int(edge_img_white.shape[1]*0.4):int(edge_img_white.shape[1])]  # row, col
+        _rbase = self.plothalfhistogram(_line_roi_righthalf)
+        
+        cv2.imshow("_line_roi_lefthalf", _line_roi_lefthalf)
+        print("half l test, base:{}".format(_lbase))
+        
+        cv2.imshow("_line_roi_righthalf", _line_roi_righthalf)
+        print("half r test, base:{}".format(_rbase))
+        
+        try:
+            self.move_with_only_with_one_line(_line_roi_lefthalf, _lbase, name='left')
+            self.estimated_center_left = self.estimated_center
+        except:
+            print("left line not detected")
+        
+        try:
+            self.move_with_only_with_one_line(_line_roi_righthalf, _rbase, name='right')
+            self.estimated_center_right = self.estimated_center
+        except:
+            print("right line not detected")          
+        
+        print("center left, right: {}, {}".format(self.estimated_center_left, self.estimated_center_right))
+        self.angled = (self.estimated_center_left + self.estimated_center_right) * 0.15
+        print("angle: ", self.angled)
+        
+        H, L, S = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HLS))
+        _, _L = cv2.threshold(L, 120, 225, cv2.THRESH_BINARY)
+        line_roi = _L[self.Row_ROI_from_real:self.Row_ROI_to_real , self.Col_ROI_from_real:self.Col_ROI_to_real]
+        #### crosswalk check
+        
+        crosswalk_img = self.crosswalk_image_create(line_roi, int(line_roi.shape[1]*0.85), window=0)
+        cv2.imshow("crosswalk checker", crosswalk_img)
+                
+        self.crosswalk_histogram(crosswalk_img, 0.7, verbose=True)
+        
+        
+        
+        """lb, rb = self.plothistogram(_line_roi_yB)
+        self.move_with_only_with_one_line(yB, rb)"""
+        
+        
+        """### test for decting stop line
+        
+        self.detect_stopline_contour(L.copy(), 150)
+        
+        for i in (range(len(self.x) - 1)):
+            cv2.rectangle(img, (self.x[i], self.y[i]), (self.x[i] + self.w[i]-1, self.y[i] + self.h[i]-1), (0, 0, 200), 3)
+        cv2.imshow("img", img)
         """
-        if(left_base < 10):
-            # MOVE with olny right
-            self.move_with_only_with_one_line(thresh, right_base)
-        elif(right_base >= self.Col_ROI_to):
-            # move with only left    
-            self.move_with_only_with_one_line(thresh, left_base)
+        
+        
+        
+        """
+        if(abs(self.estimated_center) > 25):
+            try:
+                self.move_with_only_with_one_line(thresh, left_base)
+            except:
+                self.move_with_only_with_one_line(thresh, right_base)
+                
+            self.angled = -self.estimated_center*0.16
             
-        else:    
-            draw_info = self.slide_window_search(thresh, left_base, right_base)
-        #m, r = self.draw_lane_lines(line_roi, wrapped_img, _back, draw_info)
-        """
-        if(self.esitmat > )
-        self.move_with_only_with_one_line(thresh, left_base)
-        #self.move_with_only_with_one_line(thresh, right_base)
-               
+        elif(self.estimated_center < -25):
+            try:
+                self.move_with_only_with_one_line(thresh, right_base)
+            except:
+                self.move_with_only_with_one_line(thresh, left_base)
+                
+            self.angled = self.estimated_center*0.16
+        else:
+            return_value = self.slide_window_search(thresh, left_base, right_base)
+            if(return_value == -1):
+                print("estimated go forward but not detected two lines")
+                try:
+                    self.move_with_only_with_one_line(thresh, right_base)
+                except:
+                    self.move_with_only_with_one_line(thresh, left_base)
+                    
+            self.angled = -self.estimated_center*0.1
+            
+        if(self.angled > 50):
+            self.angled = 30
+        elif(self.angled < -50):
+            self.angled = -30    
+        
+        print("self.angled: {}".format(self.angled))    """
         
         """
         긁어온 함수 테스트 - cv2.poly 안되서 일단 보류중

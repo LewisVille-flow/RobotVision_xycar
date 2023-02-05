@@ -14,7 +14,7 @@
   </node>
   
   <!-- auto drive -->
-  <node name="auto_drive" pkg="assignment1" type="real_driving.py" output="screen"/>
+  <node name="auto_drive" pkg="assignment1" type="real_driving_test.py" output="screen"/>
 </launch>
 
 
